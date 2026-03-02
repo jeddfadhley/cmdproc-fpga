@@ -146,11 +146,6 @@ begin
         next_echo_char <= echo_char;
         next_seq_done_reg <= seq_done_reg;
 
-        -- Capture seqDone whenever it pulses high
-        if seqDone = '1' then
-            next_seq_done_reg <= '1';
-        end if;
-
         rxdone <= '0';
         txnow <= '0';
         start <= '0';
@@ -253,6 +248,7 @@ begin
             -- Single cycle start pulse, then wait for data
             when A_START_DP =>
                 start <= '1';
+                next_seq_done_reg <= '0';
                 next_state <= A_WAIT_DATA;
 
             when A_WAIT_DATA =>
@@ -267,12 +263,14 @@ begin
 
             when A_SEND_HI =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 txnow <= '1';
                 next_state <= A_WAIT_HI;
 
             when A_WAIT_HI =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 if txdone = '1' then
                     next_state <= A_SEND_LO;
@@ -280,12 +278,14 @@ begin
 
             when A_SEND_LO =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 txnow <= '1';
                 next_state <= A_WAIT_LO;
 
             when A_WAIT_LO =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 if txdone = '1' then
                     next_state <= A_SEND_SPACE;
@@ -293,12 +293,14 @@ begin
 
             when A_SEND_SPACE =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";  -- ASCII space
                 txnow <= '1';
                 next_state <= A_WAIT_SPACE;
 
             when A_WAIT_SPACE =>
                 start <= '1';
+                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";
                 if txdone = '1' then
                     next_state <= A_WAIT_READY_LOW;
