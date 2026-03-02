@@ -61,6 +61,7 @@ architecture FSM of cmdProc is
     signal ones, next_ones         : unsigned(3 downto 0) := (others => '0');
     signal current_byte, next_current_byte : std_logic_vector(7 downto 0) := (others => '0');
     signal echo_char, next_echo_char : std_logic_vector(7 downto 0) := (others => '0');
+    signal seq_done_reg, next_seq_done_reg : std_logic := '0';
 
     -- Function to convert nibble to ASCII hex character
     function to_hex(nibble : std_logic_vector(3 downto 0)) return std_logic_vector is
@@ -116,12 +117,14 @@ begin
                 ones <= (others => '0');
                 current_byte <= (others => '0');
                 echo_char <= (others => '0');
+                seq_done_reg <= '0';
             else
                 hundreds <= next_hundreds;
                 tens <= next_tens;
                 ones <= next_ones;
                 current_byte <= next_current_byte;
                 echo_char <= next_echo_char;
+                seq_done_reg <= next_seq_done_reg;
             end if;
         end if;
     end process;
@@ -132,7 +135,7 @@ begin
     -- NO CLOCK - purely combinational
     ----------------------------------------------------------------------------
     comb_logic: process(state, rxnow, rxData, txdone, dataReady, byte, seqDone,
-                        hundreds, tens, ones, current_byte, echo_char)
+                        hundreds, tens, ones, current_byte, echo_char, seq_done_reg)
     begin
         -- DEFAULTS (prevents latches!)
         next_state <= state;
@@ -141,6 +144,12 @@ begin
         next_ones <= ones;
         next_current_byte <= current_byte;
         next_echo_char <= echo_char;
+        next_seq_done_reg <= seq_done_reg;
+
+        -- Capture seqDone whenever it pulses high
+        if seqDone = '1' then
+            next_seq_done_reg <= '1';
+        end if;
 
         rxdone <= '0';
         txnow <= '0';
@@ -248,7 +257,8 @@ begin
 
             when A_WAIT_DATA =>
                 start <= '1';
-                if seqDone = '1' then
+                if seq_done_reg = '1' then
+                    next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '1' then
                     next_current_byte <= byte;
@@ -296,7 +306,8 @@ begin
 
             when A_WAIT_READY_LOW =>
                 start <= '1';
-                if seqDone = '1' then
+                if seq_done_reg = '1' then
+                    next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '0' then
                     next_state <= A_WAIT_DATA;
