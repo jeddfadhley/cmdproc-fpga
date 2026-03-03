@@ -60,8 +60,7 @@ architecture FSM of cmdProc is
     signal ones, next_ones         : unsigned(3 downto 0) := (others => '0');
     signal current_byte, next_current_byte : std_logic_vector(7 downto 0) := (others => '0');
     signal echo_char, next_echo_char : std_logic_vector(7 downto 0) := (others => '0');
-    signal seq_done_reg, next_seq_done_reg : std_logic := '0';
-    signal byte_count, next_byte_count : unsigned(9 downto 0) := (others => '0');
+    signal seq_done_flag : std_logic := '0';
 
     -- Function to convert nibble to ASCII hex character
     function to_hex(nibble : std_logic_vector(3 downto 0)) return std_logic_vector is
@@ -117,28 +116,40 @@ begin
                 ones <= (others => '0');
                 current_byte <= (others => '0');
                 echo_char <= (others => '0');
-                seq_done_reg <= '0';
-                byte_count <= (others => '0');
             else
                 hundreds <= next_hundreds;
                 tens <= next_tens;
                 ones <= next_ones;
                 current_byte <= next_current_byte;
                 echo_char <= next_echo_char;
-                seq_done_reg <= next_seq_done_reg;
-                byte_count <= next_byte_count;
             end if;
         end if;
     end process;
 
     ----------------------------------------------------------------------------
-    -- PROCESS 3: Combinational Logic
+    -- PROCESS 3: seqDone Capture (Sequential)
+    -- Sticky flag: set whenever seqDone fires, cleared on new command or reset.
+    -- This ensures seqDone is never missed regardless of FSM state.
+    ----------------------------------------------------------------------------
+    seq_done_capture: process(clk)
+    begin
+        if rising_edge(clk) then
+            if reset = '1' or state = A_START_DP then
+                seq_done_flag <= '0';
+            elsif seqDone = '1' then
+                seq_done_flag <= '1';
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
+    -- PROCESS 4: Combinational Logic
     -- Determines next_state and all outputs based on current state and inputs
     -- NO CLOCK - purely combinational
     ----------------------------------------------------------------------------
-    comb_logic: process(state, rxnow, rxData, txdone, dataReady, byte, seqDone,
-                        hundreds, tens, ones, current_byte, echo_char, seq_done_reg,
-                        byte_count)
+    comb_logic: process(state, rxnow, rxData, txdone, dataReady, byte,
+                        hundreds, tens, ones, current_byte, echo_char,
+                        seq_done_flag)
     begin
         -- DEFAULTS (prevents latches!)
         next_state <= state;
@@ -147,8 +158,6 @@ begin
         next_ones <= ones;
         next_current_byte <= current_byte;
         next_echo_char <= echo_char;
-        next_seq_done_reg <= seq_done_reg;
-        next_byte_count <= byte_count;
 
         rxdone <= '0';
         txnow <= '0';
@@ -251,68 +260,57 @@ begin
 
             when A_START_DP =>
                 start <= '1';
-                next_seq_done_reg <= '0';
-                next_byte_count <= to_unsigned(
-                    to_integer(hundreds) * 100 + to_integer(tens) * 10 + to_integer(ones),
-                    10);
                 next_state <= A_WAIT_DATA;
 
             when A_WAIT_DATA =>
                 start <= '1';
-                if byte_count = 0 or seqDone = '1' or seq_done_reg = '1' then
-                    next_seq_done_reg <= '0';
-                    next_state <= IDLE;
-                elsif dataReady = '1' then
+                if dataReady = '1' then
                     next_current_byte <= byte;
-                    next_byte_count <= byte_count - 1;
                     next_state <= A_SEND_HI;
+                elsif seq_done_flag = '1' then
+                    next_state <= IDLE;
                 end if;
 
             when A_SEND_HI =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 txnow <= '1';
                 next_state <= A_WAIT_HI;
 
             when A_WAIT_HI =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 if txdone = '1' then
                     next_state <= A_SEND_LO;
                 end if;
 
             when A_SEND_LO =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 txnow <= '1';
                 next_state <= A_WAIT_LO;
 
             when A_WAIT_LO =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 if txdone = '1' then
                     next_state <= A_SEND_SPACE;
                 end if;
 
             when A_SEND_SPACE =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";  -- ASCII space
                 txnow <= '1';
                 next_state <= A_WAIT_SPACE;
 
             when A_WAIT_SPACE =>
-                if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";
                 if txdone = '1' then
                     next_state <= A_WAIT_READY_LOW;
                 end if;
 
             when A_WAIT_READY_LOW =>
-                if byte_count = 0 or seqDone = '1' or seq_done_reg = '1' then
-                    next_seq_done_reg <= '0';
-                    next_state <= IDLE;
-                elsif dataReady = '0' then
-                    next_state <= A_WAIT_DATA;
+                if dataReady = '0' then
+                    if seq_done_flag = '1' then
+                        next_state <= IDLE;
+                    else
+                        next_state <= A_WAIT_DATA;
+                    end if;
                 end if;
 
             when others =>
