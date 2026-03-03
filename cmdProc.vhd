@@ -250,6 +250,7 @@ begin
                 next_state <= A_WAIT_DATA;
 
             when A_WAIT_DATA =>
+                start <= '1';
                 if seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
