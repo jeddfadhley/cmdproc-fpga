@@ -4,7 +4,6 @@ use IEEE.NUMERIC_STD.ALL;
 use work.common_pack.all;
 
 entity cmdProc is
-
   port (
     clk         : in  STD_LOGIC; -- system clock
     reset       : in  STD_LOGIC; -- synchronous reset
@@ -245,14 +244,12 @@ begin
                     next_state <= A_START_DP;
                 end if;
 
-            -- Single cycle start pulse, then wait for data
             when A_START_DP =>
                 start <= '1';
                 next_seq_done_reg <= '0';
                 next_state <= A_WAIT_DATA;
 
             when A_WAIT_DATA =>
-                start <= '1';
                 if seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
