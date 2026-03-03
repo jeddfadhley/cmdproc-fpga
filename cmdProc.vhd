@@ -253,7 +253,7 @@ begin
 
             when A_WAIT_DATA =>
                 start <= '1';
-                if seq_done_reg = '1' then
+                if seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '1' then
@@ -308,7 +308,7 @@ begin
 
             when A_WAIT_READY_LOW =>
                 start <= '1';
-                if seq_done_reg = '1' then
+                if seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '0' then
