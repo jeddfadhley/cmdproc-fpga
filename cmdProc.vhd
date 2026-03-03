@@ -61,6 +61,7 @@ architecture FSM of cmdProc is
     signal current_byte, next_current_byte : std_logic_vector(7 downto 0) := (others => '0');
     signal echo_char, next_echo_char : std_logic_vector(7 downto 0) := (others => '0');
     signal seq_done_reg, next_seq_done_reg : std_logic := '0';
+    signal byte_count, next_byte_count : unsigned(9 downto 0) := (others => '0');
 
     -- Function to convert nibble to ASCII hex character
     function to_hex(nibble : std_logic_vector(3 downto 0)) return std_logic_vector is
@@ -117,6 +118,7 @@ begin
                 current_byte <= (others => '0');
                 echo_char <= (others => '0');
                 seq_done_reg <= '0';
+                byte_count <= (others => '0');
             else
                 hundreds <= next_hundreds;
                 tens <= next_tens;
@@ -124,6 +126,7 @@ begin
                 current_byte <= next_current_byte;
                 echo_char <= next_echo_char;
                 seq_done_reg <= next_seq_done_reg;
+                byte_count <= next_byte_count;
             end if;
         end if;
     end process;
@@ -134,7 +137,8 @@ begin
     -- NO CLOCK - purely combinational
     ----------------------------------------------------------------------------
     comb_logic: process(state, rxnow, rxData, txdone, dataReady, byte, seqDone,
-                        hundreds, tens, ones, current_byte, echo_char, seq_done_reg)
+                        hundreds, tens, ones, current_byte, echo_char, seq_done_reg,
+                        byte_count)
     begin
         -- DEFAULTS (prevents latches!)
         next_state <= state;
@@ -144,6 +148,7 @@ begin
         next_current_byte <= current_byte;
         next_echo_char <= echo_char;
         next_seq_done_reg <= seq_done_reg;
+        next_byte_count <= byte_count;
 
         rxdone <= '0';
         txnow <= '0';
@@ -247,15 +252,19 @@ begin
             when A_START_DP =>
                 start <= '1';
                 next_seq_done_reg <= '0';
+                next_byte_count <= to_unsigned(
+                    to_integer(hundreds) * 100 + to_integer(tens) * 10 + to_integer(ones),
+                    10);
                 next_state <= A_WAIT_DATA;
 
             when A_WAIT_DATA =>
                 start <= '1';
-                if seqDone = '1' or seq_done_reg = '1' then
+                if byte_count = 0 or seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '1' then
                     next_current_byte <= byte;
+                    next_byte_count <= byte_count - 1;
                     next_state <= A_SEND_HI;
                 end if;
 
@@ -299,7 +308,7 @@ begin
                 end if;
 
             when A_WAIT_READY_LOW =>
-                if seqDone = '1' or seq_done_reg = '1' then
+                if byte_count = 0 or seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
                 elsif dataReady = '0' then
