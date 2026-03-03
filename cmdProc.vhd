@@ -262,14 +262,12 @@ begin
                 end if;
 
             when A_SEND_HI =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 txnow <= '1';
                 next_state <= A_WAIT_HI;
 
             when A_WAIT_HI =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(7 downto 4));
                 if txdone = '1' then
@@ -277,14 +275,12 @@ begin
                 end if;
 
             when A_SEND_LO =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 txnow <= '1';
                 next_state <= A_WAIT_LO;
 
             when A_WAIT_LO =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= to_hex(current_byte(3 downto 0));
                 if txdone = '1' then
@@ -292,14 +288,12 @@ begin
                 end if;
 
             when A_SEND_SPACE =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";  -- ASCII space
                 txnow <= '1';
                 next_state <= A_WAIT_SPACE;
 
             when A_WAIT_SPACE =>
-                start <= '1';
                 if seqDone = '1' then next_seq_done_reg <= '1'; end if;
                 txData <= x"20";
                 if txdone = '1' then
@@ -307,7 +301,6 @@ begin
                 end if;
 
             when A_WAIT_READY_LOW =>
-                start <= '1';
                 if seqDone = '1' or seq_done_reg = '1' then
                     next_seq_done_reg <= '0';
                     next_state <= IDLE;
